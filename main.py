@@ -91,11 +91,11 @@ if __name__ == "__main__":
 
         # single
         # for img in img_list:
-        #     main(img, model="cnn")
+        #     main(img, model="hog")
 
         # multi process
         with ProcessPoolExecutor(max_workers=4) as executor:
-            tasks = [executor.submit(main, img, model="cnn")
+            tasks = [executor.submit(main, img, model="hog")
                      for img in img_list]
             wait(tasks, return_when=ALL_COMPLETED)
             print('All tasks completed.')
