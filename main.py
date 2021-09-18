@@ -14,6 +14,10 @@ def loadImage(path):
     return fr.load_image_file(path)
 
 
+def loadImageToGreyscale(path):
+    return cv2.cvtColor(fr.load_image_file(path), cv2.COLOR_BGR2GRAY)
+
+
 def loadMaskImage(path):
     return cv2.cvtColor(cv2.imread(path, -1), cv2.COLOR_BGR2RGB)
 
@@ -62,12 +66,12 @@ def displayImage(loadedImage, outputPath):
 
 
 def main(imagePath, model="hog"):
-    start = time.time()
-    print("-"*16 + "\n")
-    print(Path(imagePath).name)
     loadedImage = loadImage(imagePath)
     maskImage = loadMaskImage("mask.png")
-    faceLocations = detectFaceLocations(loadedImage, model=model)
+    faceLocations = detectFaceLocations(
+        loadImageToGreyscale(imagePath), model=model)
+    print("-"*20 + "\n")
+    print(Path(imagePath).name)
     if len(faceLocations) == 0:
         print("No face was detected.")
     else:
@@ -77,9 +81,7 @@ def main(imagePath, model="hog"):
         image = drawFaceMask(loadedImage, maskImage, faceLocations)
         os.makedirs("output", exist_ok=True)
         displayImage(image, f"output/masked_{Path(imagePath).name}")
-        print("Successfully output image.")
-    elapsed_time = time.time() - start
-    print(f"Elapsed Time: {round(elapsed_time, 2)}s\n")
+        print("Successfully output image.\n")
 
 
 if __name__ == "__main__":
