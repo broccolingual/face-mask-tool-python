@@ -1,7 +1,9 @@
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, wait, ALL_COMPLETED
+import glob
 import time
-import sys
 import os
 from pathlib import Path
+import sys
 
 import cv2
 import face_recognition as fr
@@ -17,7 +19,7 @@ def loadMaskImage(path):
 
 
 def detectFaceLocations(loadedImage, model=None):
-    return fr.face_locations(loadedImage, model=model)
+    return fr.face_locations(loadedImage, model=model, number_of_times_to_upsample=1)
 
 
 def drawFaceOutline(loadedImage, faceLocations):
@@ -59,26 +61,43 @@ def displayImage(loadedImage, outputPath):
     cv2.imwrite(outputPath, loadedImage)
 
 
-def main(imagePath):
+def main(imagePath, model="hog"):
     start = time.time()
+    print("-"*16 + "\n")
+    print(Path(imagePath).name)
     loadedImage = loadImage(imagePath)
-    maskImage = loadMaskImage("img/bear.png")
-    faceLocations = detectFaceLocations(loadedImage, model="cnn")
-    print("Detected face locations")
-    for i, k in enumerate(faceLocations):
-        print(f"{i+1}. {k}")
-    image = drawFaceMask(loadedImage, maskImage, faceLocations)
-    os.makedirs("output", exist_ok=True)
-    displayImage(image, f"output/masked_{Path(imagePath).name}")
-    print("Successfully output image.")
+    maskImage = loadMaskImage("mask.png")
+    faceLocations = detectFaceLocations(loadedImage, model=model)
+    if len(faceLocations) == 0:
+        print("No face was detected.")
+    else:
+        print(f"{len(faceLocations)} Face detected")
+        for i, k in enumerate(faceLocations):
+            print(f"{i+1}. {k}")
+        image = drawFaceMask(loadedImage, maskImage, faceLocations)
+        os.makedirs("output", exist_ok=True)
+        displayImage(image, f"output/masked_{Path(imagePath).name}")
+        print("Successfully output image.")
     elapsed_time = time.time() - start
-    print(f"Elapsed Time: {round(elapsed_time, 2)}s")
+    print(f"Elapsed Time: {round(elapsed_time, 2)}s\n")
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         exit(1)
     try:
-        main(sys.argv[1])
+        img_list = glob.glob(
+            f"{sys.argv[1]}/*.png") + glob.glob(f"{sys.argv[1]}/*.jpg")
+
+        # single
+        # for img in img_list:
+        #     main(img, model="cnn")
+
+        # multi process
+        with ProcessPoolExecutor(max_workers=4) as executor:
+            tasks = [executor.submit(main, img, model="cnn")
+                     for img in img_list]
+            wait(tasks, return_when=ALL_COMPLETED)
+            print('All tasks completed.')
     except Exception as e:
         print(e)

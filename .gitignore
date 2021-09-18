@@ -1,4 +1,4 @@
-*.png
-*.jpg
-img/
-output/
+img/*.png
+img/*.jpg
+output/*.png
+output/*.jpg
