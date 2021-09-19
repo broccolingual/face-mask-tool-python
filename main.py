@@ -4,6 +4,7 @@ import math
 import os
 from pathlib import Path
 import sys
+import time
 
 import cv2
 import face_recognition as fr
@@ -23,8 +24,12 @@ def loadMaskImage(path):
     return cv2.cvtColor(cv2.imread(path, -1), cv2.COLOR_BGR2RGB)
 
 
+def smallResizeImage(loadedImage):
+    return cv2.resize(loadedImage, dsize=None, fx=0.5, fy=0.5)
+
+
 def detectFaceLocations(loadedImage, model=None):
-    return fr.face_locations(loadedImage, model=model, number_of_times_to_upsample=1)
+    return fr.face_locations(smallResizeImage(loadedImage), model=model, number_of_times_to_upsample=1)
 
 
 def detectFaceLandmarks(loadedImage, model=None):
@@ -33,6 +38,11 @@ def detectFaceLandmarks(loadedImage, model=None):
 
 def drawFaceOutline(loadedImage, faceLocations):
     for (top, right, bottom, left) in faceLocations:
+        top *= 2
+        right *= 2
+        bottom *= 2
+        left *= 2
+
         cv2.rectangle(loadedImage, (left, top),
                       (right, bottom), (0, 0, 255), 2)
     return loadedImage
@@ -65,6 +75,11 @@ def calcFaceAngleFromEyePoints(left_eye: tuple, right_eye: tuple):
 
 def drawFaceMask(loadedImage, maskImage, faceLocations):
     for (top, right, bottom, left) in faceLocations:
+        top *= 2
+        right *= 2
+        bottom *= 2
+        left *= 2
+
         resizedMaskImage = cv2.resize(
             maskImage, dsize=(2*(right - left), 2*(bottom - top)))
         loadedImage = putSprite_npwhere(
@@ -96,9 +111,14 @@ def convertCV2ToPIL(image):
 
 
 def drawFaceAngledMask(loadedImage, maskImage, faceLocations, faceLandmarks):
-    for i, (top, right, bottom, left) in enumerate(faceLocations):
+    for (top, right, bottom, left), faceLandmark in zip(faceLocations, faceLandmarks):
+        top *= 2
+        right *= 2
+        bottom *= 2
+        left *= 2
+
         faceAngle = calcFaceAngleFromEyePoints(calcEyePointCenter(
-            faceLandmarks[i]["left_eye"]), calcEyePointCenter(faceLandmarks[i]["right_eye"]))
+            faceLandmark["left_eye"]), calcEyePointCenter(faceLandmark["right_eye"]))
         resizedMaskImage = cv2.resize(
             maskImage, dsize=(2*(right - left), 2*(bottom - top)))
         rotatedMaskImage = convertCV2ToPIL(
@@ -106,7 +126,7 @@ def drawFaceAngledMask(loadedImage, maskImage, faceLocations, faceLandmarks):
         loadedImage = putSprite_npwhere(
             loadedImage, convertPILToCV2(rotatedMaskImage), (int(left - 0.5*(right - left)), int(top - 0.5*(bottom - top))))  # 透過PNG用処理
 
-        print(f"{i+1}. {(top, right, bottom, left)} - {round(-faceAngle, 1)}°")
+        print(f"{(top, right, bottom, left)} | {round(-faceAngle, 1)}°")
     return loadedImage
 
 
@@ -144,7 +164,7 @@ def main(imagePath, model="hog"):
         loadedGreyImage, model="small")
 
     print("-"*20 + "\n")
-    print(Path(imagePath).name)
+    print(Path(imagePath).name, loadedImage.shape)
     if len(faceLocations) == 0:
         print("No face was detected.")
     else:
@@ -159,18 +179,21 @@ if __name__ == "__main__":
     if len(sys.argv) != 2:
         exit(1)
     try:
+        start = time.time()
         img_list = glob.glob(
             f"{sys.argv[1]}/*.png") + glob.glob(f"{sys.argv[1]}/*.jpg")
 
         # single
-        # for img in img_list:
-        #     main(img, model="hog")
+        for img in img_list:
+            main(img, model="cnn")
 
         # multi process
-        with ProcessPoolExecutor(max_workers=4) as executor:
-            tasks = [executor.submit(main, img, model="hog")
-                     for img in img_list]
-            wait(tasks, return_when=ALL_COMPLETED)
-            print('All tasks completed.')
+        # with ProcessPoolExecutor(max_workers=4) as executor:
+        #     tasks = [executor.submit(main, img, model="hog")
+        #              for img in img_list]
+        #     wait(tasks, return_when=ALL_COMPLETED)
+        #     print('All tasks completed.')
+        elapsed_time = time.time() - start
+        print(f"Elapsed Time: {round(elapsed_time, 1)}s")
     except Exception as e:
         print(e)
