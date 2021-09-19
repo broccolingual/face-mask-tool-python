@@ -24,24 +24,25 @@ def loadMaskImage(path):
     return cv2.cvtColor(cv2.imread(path, -1), cv2.COLOR_BGR2RGB)
 
 
-def smallResizeImage(loadedImage):
-    return cv2.resize(loadedImage, dsize=None, fx=0.5, fy=0.5)
+def smallResizeImage(loadedImage, ratio=0.5):
+    return cv2.resize(loadedImage, dsize=None, fx=ratio, fy=ratio)
 
 
-def detectFaceLocations(loadedImage, model=None):
-    return fr.face_locations(smallResizeImage(loadedImage), model=model, number_of_times_to_upsample=1)
+def detectFaceLocations(loadedImage, model=None, ratio=0.5):
+    return fr.face_locations(smallResizeImage(loadedImage, ratio=ratio), model=model, number_of_times_to_upsample=1)
 
 
 def detectFaceLandmarks(loadedImage, model=None):
     return fr.face_landmarks(loadedImage, model=model)
 
 
-def drawFaceOutline(loadedImage, faceLocations):
+def drawFaceOutline(loadedImage, faceLocations, ratio=0.5):
+    r_ratio = int(np.reciprocal(ratio))
     for (top, right, bottom, left) in faceLocations:
-        top *= 2
-        right *= 2
-        bottom *= 2
-        left *= 2
+        top *= r_ratio
+        right *= r_ratio
+        bottom *= r_ratio
+        left *= r_ratio
 
         cv2.rectangle(loadedImage, (left, top),
                       (right, bottom), (0, 0, 255), 2)
@@ -73,12 +74,13 @@ def calcFaceAngleFromEyePoints(left_eye: tuple, right_eye: tuple):
     return np.arctan((y1 - y2)/(x1 - x2))*180/math.pi
 
 
-def drawFaceMask(loadedImage, maskImage, faceLocations):
+def drawFaceMask(loadedImage, maskImage, faceLocations, ratio=0.5):
+    r_ratio = int(np.reciprocal(ratio))
     for (top, right, bottom, left) in faceLocations:
-        top *= 2
-        right *= 2
-        bottom *= 2
-        left *= 2
+        top *= r_ratio
+        right *= r_ratio
+        bottom *= r_ratio
+        left *= r_ratio
 
         resizedMaskImage = cv2.resize(
             maskImage, dsize=(2*(right - left), 2*(bottom - top)))
@@ -110,23 +112,49 @@ def convertCV2ToPIL(image):
     return new_image
 
 
-def drawFaceAngledMask(loadedImage, maskImage, faceLocations, faceLandmarks):
-    for (top, right, bottom, left), faceLandmark in zip(faceLocations, faceLandmarks):
-        top *= 2
-        right *= 2
-        bottom *= 2
-        left *= 2
+def isEyePointsInside(faceOutline: tuple, left_eye: tuple, right_eye: tuple) -> bool:
+    top, right, bottom, left = faceOutline
+    if (left < left_eye[0] < right) and (top < left_eye[1] < bottom) and (left < right_eye[0] < right) and (top < right_eye[1] < bottom):
+        return True
+    else:
+        return False
 
-        faceAngle = calcFaceAngleFromEyePoints(calcEyePointCenter(
-            faceLandmark["left_eye"]), calcEyePointCenter(faceLandmark["right_eye"]))
-        resizedMaskImage = cv2.resize(
-            maskImage, dsize=(2*(right - left), 2*(bottom - top)))
-        rotatedMaskImage = convertCV2ToPIL(
-            resizedMaskImage).rotate(-faceAngle)  # PILの回転関数を使う為に変換
-        loadedImage = putSprite_npwhere(
-            loadedImage, convertPILToCV2(rotatedMaskImage), (int(left - 0.5*(right - left)), int(top - 0.5*(bottom - top))))  # 透過PNG用処理
 
-        print(f"{(top, right, bottom, left)} | {round(-faceAngle, 1)}°")
+def drawFaceAngledMask(loadedImage, maskImage, faceLocations, faceLandmarks, ratio=0.5):
+    r_ratio = int(np.reciprocal(ratio))
+    for i, (top, right, bottom, left) in enumerate(faceLocations):
+        top *= r_ratio
+        right *= r_ratio
+        bottom *= r_ratio
+        left *= r_ratio
+
+        targetFaceLandmark = None
+
+        # 顔の位置に合致する顔の特徴量があるかを判定
+        for faceLandmark in faceLandmarks:
+            if isEyePointsInside((top, right, bottom, left), faceLandmark["left_eye"][0], faceLandmark["right_eye"][0]):
+                targetFaceLandmark = faceLandmark
+
+        # 該当する顔の特徴量があれば、それに基づいてマスクの角度を回転して描画
+        if targetFaceLandmark is not None:
+            faceAngle = calcFaceAngleFromEyePoints(calcEyePointCenter(
+                targetFaceLandmark["left_eye"]), calcEyePointCenter(targetFaceLandmark["right_eye"]))
+            resizedMaskImage = cv2.resize(
+                maskImage, dsize=(2*(right - left), 2*(bottom - top)))
+            rotatedMaskImage = convertCV2ToPIL(
+                resizedMaskImage).rotate(-faceAngle)  # PILの回転関数を使う為に変換
+            loadedImage = putSprite_npwhere(
+                loadedImage, convertPILToCV2(rotatedMaskImage), (int(left - 0.5*(right - left)), int(top - 0.5*(bottom - top))))  # 透過PNG用処理
+            print(f"{i+1}. {(top, right, bottom, left)} | {round(-faceAngle, 1)}°")
+
+        # 顔の特徴量が不足している場合は、角度を付けずにマスクを合成
+        else:
+            resizedMaskImage = cv2.resize(
+                maskImage, dsize=(2*(right - left), 2*(bottom - top)))
+            loadedImage = putSprite_npwhere(
+                loadedImage, resizedMaskImage, (int(left - 0.5*(right - left)), int(top - 0.5*(bottom - top))))
+            print(f"{i+1}. {(top, right, bottom, left)} | unknown")
+
     return loadedImage
 
 
@@ -159,18 +187,19 @@ def main(imagePath, model="hog"):
     loadedGreyImage = loadImageToGreyscale(imagePath)
     maskImage = loadMaskImage("mask.png")
     faceLocations = detectFaceLocations(
-        loadedGreyImage, model=model)
+        loadedGreyImage, model=model, ratio=0.5)
     faceLandmarks = detectFaceLandmarks(
         loadedGreyImage, model="small")
 
     print("-"*20 + "\n")
     print(Path(imagePath).name, loadedImage.shape)
     if len(faceLocations) == 0:
-        print("No face was detected.")
+        print("No face was detected.\n")
     else:
-        print(f"{len(faceLocations)} Face detected")
+        print(
+            f"{len(faceLocations)} face detected. {len(faceLandmarks)} face landmark detected.")
         image = drawFaceAngledMask(
-            loadedImage, maskImage, faceLocations, faceLandmarks)
+            loadedImage, maskImage, faceLocations, faceLandmarks, ratio=0.5)
         displayImage(image, f"output/masked_{Path(imagePath).name}")
         print("Successfully output image.\n")
 
