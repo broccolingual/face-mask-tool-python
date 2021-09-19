@@ -14,3 +14,6 @@ pillow = "*"
 
 [requires]
 python_version = "3.9"
+
+[scripts]
+mask = "py main.py"

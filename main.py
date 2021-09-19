@@ -241,7 +241,7 @@ if __name__ == "__main__":
 
         # multi process
         with ProcessPoolExecutor(max_workers=4) as executor:
-            tasks = [executor.submit(main, img, model="cnn", debug=True)
+            tasks = [executor.submit(main, img, model="cnn", debug=False)
                      for img in sliced_img_list]
             wait(tasks, return_when=ALL_COMPLETED)
             print('All tasks completed.\n')
