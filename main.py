@@ -192,14 +192,10 @@ def main(imagePath, model="hog"):
     print("-"*20 + "\n")
     print(Path(imagePath).name, loadedImage.shape)
     i = 0
-    while(i < 3):
+    while(i < 1):
         i += 1
         if i == 1:
-            ratio = 0.25
-        elif i == 2:
             ratio = 0.5
-        else:
-            ratio = 1
 
         faceLocations = detectFaceLocations(
             loadedGreyImage, model=model, ratio=ratio)
@@ -223,18 +219,21 @@ if __name__ == "__main__":
     try:
         start = time.time()
         img_list = glob.glob(
-            f"{sys.argv[1]}/*.png") + glob.glob(f"{sys.argv[1]}/*.jpg")
+            f"{sys.argv[1]}/**/*.png", recursive=True) + glob.glob(f"{sys.argv[1]}/**/*.jpg", recursive=True)
 
-        # single (first 10 images)
-        for img in img_list[:20]:
-            main(img, model="cnn")
+        sliced_img_list = img_list
+        print(f"{len(sliced_img_list)} image(png/jpg) detected.\n")
+
+        # # single
+        # for img in sliced_img_list:
+        #     main(img, model="cnn")
 
         # multi process
-        # with ProcessPoolExecutor(max_workers=4) as executor:
-        #     tasks = [executor.submit(main, img, model="hog")
-        #              for img in img_list]
-        #     wait(tasks, return_when=ALL_COMPLETED)
-        #     print('All tasks completed.')
+        with ProcessPoolExecutor(max_workers=4) as executor:
+            tasks = [executor.submit(main, img, model="cnn")
+                     for img in sliced_img_list]
+            wait(tasks, return_when=ALL_COMPLETED)
+            print('All tasks completed.\n')
         elapsed_time = time.time() - start
         print(f"Elapsed Time: {round(elapsed_time, 1)}s")
     except Exception as e:
