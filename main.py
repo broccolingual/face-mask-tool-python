@@ -186,22 +186,35 @@ def main(imagePath, model="hog"):
     loadedImage = loadImage(imagePath)
     loadedGreyImage = loadImageToGreyscale(imagePath)
     maskImage = loadMaskImage("mask.png")
-    faceLocations = detectFaceLocations(
-        loadedGreyImage, model=model, ratio=0.5)
-    faceLandmarks = detectFaceLandmarks(
-        loadedGreyImage, model="small")
+
+    faceLandmarks = detectFaceLandmarks(loadedGreyImage, model="small")
 
     print("-"*20 + "\n")
     print(Path(imagePath).name, loadedImage.shape)
-    if len(faceLocations) == 0:
-        print("No face was detected.\n")
-    else:
-        print(
-            f"{len(faceLocations)} face detected. {len(faceLandmarks)} face landmark detected.")
-        image = drawFaceAngledMask(
-            loadedImage, maskImage, faceLocations, faceLandmarks, ratio=0.5)
-        displayImage(image, f"output/masked_{Path(imagePath).name}")
-        print("Successfully output image.\n")
+    i = 0
+    while(i < 3):
+        i += 1
+        if i == 1:
+            ratio = 0.25
+        elif i == 2:
+            ratio = 0.5
+        else:
+            ratio = 1
+
+        faceLocations = detectFaceLocations(
+            loadedGreyImage, model=model, ratio=ratio)
+
+        if len(faceLocations) == 0:
+            print(f"No face was detected. (x{ratio})\n")
+            continue
+        else:
+            print(
+                f"{len(faceLocations)} face detected. {len(faceLandmarks)} face landmark detected.")
+            image = drawFaceAngledMask(
+                loadedImage, maskImage, faceLocations, faceLandmarks, ratio=ratio)
+            displayImage(image, f"output/masked_{Path(imagePath).name}")
+            print("Successfully output image.\n")
+            break
 
 
 if __name__ == "__main__":
@@ -212,8 +225,8 @@ if __name__ == "__main__":
         img_list = glob.glob(
             f"{sys.argv[1]}/*.png") + glob.glob(f"{sys.argv[1]}/*.jpg")
 
-        # single
-        for img in img_list:
+        # single (first 10 images)
+        for img in img_list[:20]:
             main(img, model="cnn")
 
         # multi process
