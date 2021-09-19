@@ -58,7 +58,6 @@ def drawEyePoints(loadedImage, faceLandmarks):
                 faceLandmark["right_eye"]), (0, 255, 0), 2)
         angle = calcFaceAngleFromEyePoints(calcEyePointCenter(
             faceLandmark["left_eye"]), calcEyePointCenter(faceLandmark["right_eye"]))
-        print(f"Angle: {round(angle, 1)}°")
     return loadedImage
 
 
@@ -181,7 +180,7 @@ def displayImage(loadedImage, outputPath):
     cv2.imwrite(outputPath, loadedImage)
 
 
-def main(imagePath, model="hog"):
+def main(imagePath, model="hog", debug=False):
     os.makedirs("output", exist_ok=True)
     loadedImage = loadImage(imagePath)
     loadedGreyImage = loadImageToGreyscale(imagePath)
@@ -191,26 +190,38 @@ def main(imagePath, model="hog"):
 
     print("-"*20 + "\n")
     print(Path(imagePath).name, loadedImage.shape)
-    i = 0
-    while(i < 1):
-        i += 1
-        if i == 1:
-            ratio = 0.5
 
-        faceLocations = detectFaceLocations(
-            loadedGreyImage, model=model, ratio=ratio)
+    # 解像度の小さい方の値を指標とする
+    h, w, t = loadedImage.shape
+    if h < w:
+        target = h
+    else:
+        target = w
 
-        if len(faceLocations) == 0:
-            print(f"No face was detected. (x{ratio})\n")
-            continue
-        else:
-            print(
-                f"{len(faceLocations)} face detected. {len(faceLandmarks)} face landmark detected.")
+    # 解像度ごとの画像圧縮率の設定
+    if target < 320:
+        ratio = 1
+    elif target < 640:
+        ratio = 0.5
+    else:
+        ratio = 0.25
+
+    faceLocations = detectFaceLocations(
+        loadedGreyImage, model=model, ratio=ratio)
+
+    if len(faceLocations) == 0:
+        print(f"No face was detected.\n")
+    else:
+        print(
+            f"{len(faceLocations)} face detected.(x{ratio}) {len(faceLandmarks)} face landmark detected.")
+        if debug is not True:
             image = drawFaceAngledMask(
                 loadedImage, maskImage, faceLocations, faceLandmarks, ratio=ratio)
-            displayImage(image, f"output/masked_{Path(imagePath).name}")
-            print("Successfully output image.\n")
-            break
+        else:
+            drawFaceOutline(loadedImage, faceLocations, ratio=ratio)
+            image = drawEyePoints(loadedImage, faceLandmarks)
+        displayImage(image, f"output/masked_{Path(imagePath).name}")
+        print("Successfully output image.\n")
 
 
 if __name__ == "__main__":
@@ -230,7 +241,7 @@ if __name__ == "__main__":
 
         # multi process
         with ProcessPoolExecutor(max_workers=4) as executor:
-            tasks = [executor.submit(main, img, model="cnn")
+            tasks = [executor.submit(main, img, model="cnn", debug=True)
                      for img in sliced_img_list]
             wait(tasks, return_when=ALL_COMPLETED)
             print('All tasks completed.\n')
