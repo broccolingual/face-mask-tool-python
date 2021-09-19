@@ -8,6 +8,7 @@ numpy = "*"
 opencv-python = "*"
 cmake = "*"
 face-recognition = "*"
+pillow = "*"
 
 [dev-packages]
 
